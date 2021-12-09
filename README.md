@@ -16,7 +16,7 @@ There are two main ways of aligning objects using the TB Object Aligner tool: Ce
 Centering objects aligns them along the chosen axis in either World or Local space.
 
 ### Average
-Centers the objects along the chosen world axis that passes through the average position of all selected objects.
+Centers the objects along the chosen world axis vector that passes through the average position of all selected objects.
 
 ![Average centering](/Images/ObjectAligner_Center_Average_01.png?raw=true)
 
