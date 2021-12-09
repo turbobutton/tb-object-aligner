@@ -27,11 +27,11 @@ namespace TButt.Tools
 		#region CONSTANTS
 		private static readonly string LABEL_WINDOW_TITLE = "Object Aligner";
 
-		private static readonly string CENTER_LABEL = "Center";
+		private static readonly string AVERAGE_LABEL = "Average";
 
-		private static readonly string TOOLTIP_ALIGN_WORLD_FORMAT = "Align all objects with {0}'s {1} position.";
+		private static readonly string TOOLTIP_ALIGN_WORLD_FORMAT = "Align all objects with {0} along the {1} axis.";
 		private static readonly string TOOLTIP_ALIGN_LOCAL_FORMAT = "Align all objects with {0}'s local {1} axis.";
-		private static readonly string TOOLTIP_CENTER_ALIGN_FORMAT = "Align all objects to average {0} position.";
+		private static readonly string TOOLTIP_CENTER_ALIGN_FORMAT = "Align all objects to the average position along the {0} axis.";
 
 		private static readonly string LABEL_X = "X";
 		private static readonly string LABEL_Y = "Y";
@@ -274,7 +274,7 @@ namespace TButt.Tools
 			GUI.Box(rect, string.Empty);
 			GUI.color = startColor;
 
-			EditorGUILayout.LabelField(CENTER_LABEL, EditorStyles.boldLabel, LAYOUT_MIN_WIDTH_100_HEIGHT_30);
+			EditorGUILayout.LabelField(AVERAGE_LABEL, EditorStyles.boldLabel, LAYOUT_MIN_WIDTH_100_HEIGHT_30);
 
 			startColor = GUI.backgroundColor;
 
@@ -342,57 +342,6 @@ namespace TButt.Tools
 			EditorGUILayout.EndHorizontal();
 		}
 
-		void AlignToObject(GameObject baseObject, Axis axis)
-		{
-			Transform baseObjectTransform = baseObject.transform;
-			Vector3 baseObjectPos = baseObject.transform.position;
-
-			foreach (GameObject obj in _selected)
-			{
-				if (obj == baseObject)
-					continue;
-
-				Vector3 objPos = obj.transform.position;
-
-				switch (_alignmentSpace)
-				{
-					case Space.World:
-						switch (axis)
-						{
-							case Axis.X:
-								objPos.x = baseObjectPos.x;
-								break;
-							case Axis.Y:
-								objPos.y = baseObjectPos.y;
-								break;
-							case Axis.Z:
-								objPos.z = baseObjectPos.z;
-								break;
-						}
-						break;
-					case Space.Self:
-						switch (axis)
-						{
-							case Axis.X:
-								objPos = ClosestPointOnLine(baseObjectTransform.right, baseObjectPos, objPos);
-								break;
-							case Axis.Y:
-								objPos = ClosestPointOnLine(baseObjectTransform.up, baseObjectPos, objPos);
-								break;
-							case Axis.Z:
-								objPos = ClosestPointOnLine(baseObjectTransform.forward, baseObjectPos, objPos);
-								break;
-						}
-						break;
-				}
-
-				Undo.RecordObject(obj.transform, string.Format(UNDO_MESSAGE_ALIGN_FORMAT, baseObject.name, axis.ToString()));
-
-				obj.transform.position = objPos;
-			}
-
-			EditorSceneManager.MarkAllScenesDirty();
-		}
 		#endregion
 
 		#region DISTRIBUTE GUI
@@ -519,30 +468,84 @@ namespace TButt.Tools
 		#endregion
 
 		#region FUNCTIONALITY
-		void AlignObjectsCenter(Axis axis)
+		void AlignToObject(GameObject baseObject, Axis axis)
 		{
-			Vector3 pos = Vector3.zero;
+			Transform baseObjectTransform = baseObject.transform;
+			Vector3 baseObjectPos = baseObject.transform.position;
 
 			foreach (GameObject obj in _selected)
 			{
-				pos += obj.transform.position;
+				if (obj == baseObject)
+					continue;
+
+				Vector3 objPos = obj.transform.position;
+
+				switch (_alignmentSpace)
+				{
+					case Space.World:
+						switch (axis)
+						{
+							case Axis.X:
+								objPos = ClosestPointOnLine(Vector3.right, baseObjectPos, objPos);
+								break;
+							case Axis.Y:
+								objPos = ClosestPointOnLine(Vector3.up, baseObjectPos, objPos);
+								break;
+							case Axis.Z:
+								objPos = ClosestPointOnLine(Vector3.forward, baseObjectPos, objPos);
+								break;
+						}
+						break;
+					case Space.Self:
+						switch (axis)
+						{
+							case Axis.X:
+								objPos = ClosestPointOnLine(baseObjectTransform.right, baseObjectPos, objPos);
+								break;
+							case Axis.Y:
+								objPos = ClosestPointOnLine(baseObjectTransform.up, baseObjectPos, objPos);
+								break;
+							case Axis.Z:
+								objPos = ClosestPointOnLine(baseObjectTransform.forward, baseObjectPos, objPos);
+								break;
+						}
+						break;
+				}
+
+				Undo.RecordObject(obj.transform, string.Format(UNDO_MESSAGE_ALIGN_FORMAT, baseObject.name, axis.ToString()));
+
+				obj.transform.position = objPos;
 			}
 
-			pos /= _selected.Length;
+			EditorSceneManager.MarkAllScenesDirty();
+		}
+
+
+		void AlignObjectsCenter(Axis axis)
+		{
+			Vector3 avgPos = Vector3.zero;
 
 			foreach (GameObject obj in _selected)
 			{
-				Vector3 newPosition = obj.transform.position;
+				avgPos += obj.transform.position;
+			}
+
+			avgPos /= _selected.Length;
+
+			foreach (GameObject obj in _selected)
+			{
+				Vector3 newPosition = Vector3.zero;
+				Vector3 objPos = obj.transform.position;
 				switch (axis)
 				{
 					case Axis.X:
-						newPosition.x = pos.x;
+						newPosition = ClosestPointOnLine(Vector3.right, avgPos, objPos);
 						break;
 					case Axis.Y:
-						newPosition.y = pos.y;
+						newPosition = ClosestPointOnLine(Vector3.up, avgPos, objPos);
 						break;
 					case Axis.Z:
-						newPosition.z = pos.z;
+						newPosition = ClosestPointOnLine(Vector3.forward, avgPos, objPos);
 						break;
 				}
 
