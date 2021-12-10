@@ -37,4 +37,4 @@ Distributing objects evenly spaces all objects between a chosen "First" and "Las
 
 You can also choose to distribute the objects along "All" axes.
 
-![Distributing objects along all axes](/Images/ObjectAligner_Distribute_01.png?raw=true)
+![Distributing objects along all axes](/Images/ObjectAligner_Distribute_02.png?raw=true)
