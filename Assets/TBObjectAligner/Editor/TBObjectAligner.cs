@@ -8,7 +8,7 @@ namespace TButt.Tools
 {
 	public class TBObjectAligner : EditorWindow
 	{
-		private GameObject[] _selected;
+		private GameObject[] _selected = new GameObject[0];
 		private string[] _selectedNames;
 		private GUIContent _content;
 		private Vector2 _scroll = Vector2.zero;
@@ -21,6 +21,12 @@ namespace TButt.Tools
 
 		private GUIStyle _styleLabel;
 		private GUIStyle _styleBoldLabel;
+
+		private bool _hasHoveredButton;
+		private GameObject _hoveredObject;
+		private Vector3 _hoveredObjectPosition;
+		private Axis _hoveredAxis;
+		private Space _hoveredObjectSpace;
 
 		private Space _alignmentSpace = Space.World;
 
@@ -158,10 +164,84 @@ namespace TButt.Tools
 			}
 
 			GUI.color = startingColor;
+
+			Color startHandlesColor = Handles.color;
+			if (_hasHoveredButton)
+			{
+				Vector3 startPoint = Vector3.zero;
+				Vector3 endPoint = Vector3.zero;
+				switch (_toolbarSelection)
+				{
+					case 0:
+						Vector3 lineDir;
+						if (_hoveredAxis == Axis.X)
+						{
+							Handles.color = Color.red;
+							lineDir = Vector3.right;
+						}
+						else if (_hoveredAxis == Axis.Y)
+						{
+							Handles.color = Color.green;
+							lineDir = Vector3.up;
+						}
+						else
+						{
+							Handles.color = Color.blue;
+							lineDir = Vector3.forward;
+						}
+
+						switch (_hoveredObjectSpace)
+						{
+							case Space.World:
+								break;
+							case Space.Self:
+								lineDir = _hoveredObject.transform.rotation * lineDir;
+								break;
+						}
+
+						startPoint = _hoveredObjectPosition - lineDir * 100f;
+						endPoint = _hoveredObjectPosition + lineDir * 100f;
+						break;
+					case 1:
+						startPoint = _hoveredObject.transform.position;
+						if (_hoveredAxis == Axis.X)
+						{
+							Handles.color = Color.red;
+							endPoint = startPoint + Vector3.Project(_hoveredObjectPosition - startPoint, Vector3.right);
+						}
+						else if (_hoveredAxis == Axis.Y)
+						{
+							Handles.color = Color.green;
+							endPoint = startPoint + Vector3.Project(_hoveredObjectPosition - startPoint, Vector3.up);
+						}
+						else if (_hoveredAxis == Axis.Z)
+						{
+							Handles.color = Color.blue;
+							endPoint = startPoint + Vector3.Project(_hoveredObjectPosition - startPoint, Vector3.forward);
+						}
+						else if (_hoveredAxis == Axis.All)
+						{
+							Handles.color = Color.yellow;
+							endPoint = _hoveredObjectPosition;
+						}
+
+						break;
+				}
+				
+
+				//Handles.DrawLine(startPoint, endPoint, 1f);
+				Handles.DrawDottedLine(startPoint, endPoint, 10f);
+			}
+
+			Handles.color = startHandlesColor;
+
+			SceneView.RepaintAll();
 		}
 
 		private void OnGUI()
 		{
+			SetHasHoveredButton(false);
+
 			_toolbarSelection = GUILayout.Toolbar(_toolbarSelection, TOOLBAR_LABELS, LAYOUT_HEIGHT_30);
 
 			EditorGUILayout.Space();
@@ -279,10 +359,16 @@ namespace TButt.Tools
 			startColor = GUI.backgroundColor;
 
 			GUI.backgroundColor = Color.red;
+			Vector3 avgPos = CalculateAvgPosOfSelected ();
 			if (GUILayout.Button(MakeLabel(LABEL_X, string.Format(TOOLTIP_CENTER_ALIGN_FORMAT, LABEL_X)), LAYOUT_WIDTH_50_HEIGHT_30))
 			{
 				AlignObjectsCenter(Axis.X);
 			}
+
+			Rect buttonRect = GUILayoutUtility.GetLastRect();
+			Vector2 mousePos = Event.current.mousePosition;
+
+			ContributeButtonHoverState(buttonRect.Contains(mousePos), null, avgPos, Axis.X, Space.World);
 
 			GUI.backgroundColor = Color.green;
 			if (GUILayout.Button(MakeLabel(LABEL_Y, string.Format(TOOLTIP_CENTER_ALIGN_FORMAT, LABEL_Y)), LAYOUT_WIDTH_50_HEIGHT_30))
@@ -290,11 +376,17 @@ namespace TButt.Tools
 				AlignObjectsCenter(Axis.Y);
 			}
 
+			buttonRect = GUILayoutUtility.GetLastRect();
+			ContributeButtonHoverState(buttonRect.Contains(mousePos), null, avgPos, Axis.Y, Space.World);
+
 			GUI.backgroundColor = Color.blue;
 			if (GUILayout.Button(MakeLabel(LABEL_Z, string.Format(TOOLTIP_CENTER_ALIGN_FORMAT, LABEL_Z)), LAYOUT_WIDTH_50_HEIGHT_30))
 			{
 				AlignObjectsCenter(Axis.Z);
 			}
+
+			buttonRect = GUILayoutUtility.GetLastRect();
+			ContributeButtonHoverState(buttonRect.Contains(mousePos), null, avgPos, Axis.Z, Space.World);
 
 			GUI.backgroundColor = startColor;
 
@@ -324,11 +416,19 @@ namespace TButt.Tools
 				AlignToObject(obj, Axis.X);
 			}
 
+			Rect buttonRect = GUILayoutUtility.GetLastRect();
+			Vector2 mousePos = Event.current.mousePosition;
+
+			ContributeButtonHoverState(buttonRect.Contains(mousePos), obj, obj.transform.position, Axis.X, _alignmentSpace);
+
 			GUI.backgroundColor = Color.green;
 			if (GUILayout.Button(MakeLabel(LABEL_Y, string.Format(tooltip, objectName, LABEL_Y)), LAYOUT_WIDTH_50))
 			{
 				AlignToObject(obj, Axis.Y);
 			}
+
+			buttonRect = GUILayoutUtility.GetLastRect();
+			ContributeButtonHoverState(buttonRect.Contains(mousePos), obj, obj.transform.position, Axis.Y, _alignmentSpace);
 
 			GUI.backgroundColor = Color.blue;
 
@@ -337,10 +437,14 @@ namespace TButt.Tools
 				AlignToObject(obj, Axis.Z);
 			}
 
+			buttonRect = GUILayoutUtility.GetLastRect();
+			ContributeButtonHoverState(buttonRect.Contains(mousePos), obj, obj.transform.position, Axis.Z, _alignmentSpace);
+
 			GUI.backgroundColor = startBackgroundColor;
 
 			EditorGUILayout.EndHorizontal();
 		}
+
 
 		#endregion
 
@@ -352,8 +456,6 @@ namespace TButt.Tools
 
 			if (disabled)
 			{
-				//EditorGUILayout.BeginScrollView(_distributeScroll1);
-				//EditorGUILayout.EndScrollView();
 				EditorGUILayout.HelpBox(string.Format (HELP_BOX_FORMAT, REQUIRED_SELECTION_COUNT_DISTRIBUTE.ToString ()), MessageType.Warning);
 			}
 			else
@@ -441,11 +543,21 @@ namespace TButt.Tools
 				DistributeBetweenObjects(_distributeFirstSelection, _distributeLastSelection, Axis.X);
 			}
 
+			Rect buttonRect = GUILayoutUtility.GetLastRect();
+			Vector2 mousePos = Event.current.mousePosition;
+			
+			if (!disabled)
+				ContributeButtonHoverState(buttonRect.Contains(mousePos), _selected[_distributeFirstSelection], _selected[_distributeLastSelection].transform.position, Axis.X, Space.World);
+
 			GUI.backgroundColor = Color.green;
 			if (GUILayout.Button(MakeLabel(LABEL_Y, DISTRIBUTE_BUTTON_Y_TOOLTIP)))
 			{
 				DistributeBetweenObjects(_distributeFirstSelection, _distributeLastSelection, Axis.Y);
 			}
+
+			buttonRect = GUILayoutUtility.GetLastRect();
+			if (!disabled)
+				ContributeButtonHoverState(buttonRect.Contains(mousePos), _selected[_distributeFirstSelection], _selected[_distributeLastSelection].transform.position, Axis.Y, Space.World);
 
 			GUI.backgroundColor = Color.blue;
 
@@ -454,11 +566,19 @@ namespace TButt.Tools
 				DistributeBetweenObjects(_distributeFirstSelection, _distributeLastSelection, Axis.Z);
 			}
 
+			buttonRect = GUILayoutUtility.GetLastRect();
+			if (!disabled)
+				ContributeButtonHoverState(buttonRect.Contains(mousePos), _selected[_distributeFirstSelection], _selected[_distributeLastSelection].transform.position, Axis.Z, Space.World);
+
 			GUI.backgroundColor = Color.yellow;
 			if (GUILayout.Button(MakeLabel(LABEL_ALL, DISTRIBUTE_BUTTON_ALL_TOOLTIP)))
 			{
 				DistributeBetweenObjects(_distributeFirstSelection, _distributeLastSelection, Axis.All);
 			}
+
+			buttonRect = GUILayoutUtility.GetLastRect();
+			if (!disabled)
+				ContributeButtonHoverState(buttonRect.Contains(mousePos), _selected[_distributeFirstSelection], _selected[_distributeLastSelection].transform.position, Axis.All, Space.World);
 
 			GUI.backgroundColor = startBackgroundColor;
 			EditorGUILayout.EndHorizontal();
@@ -468,6 +588,29 @@ namespace TButt.Tools
 		#endregion
 
 		#region FUNCTIONALITY
+		void SetHasHoveredButton(bool value)
+		{
+			if (_hasHoveredButton != value)
+			{
+				SceneView.RepaintAll();
+			}
+
+			_hasHoveredButton = value;
+		}
+
+		void ContributeButtonHoverState (bool isHovered, GameObject obj, Vector3 position, Axis axis, Space space)
+		{
+			SetHasHoveredButton (_hasHoveredButton |= isHovered);
+
+			if (isHovered)
+			{
+				_hoveredObject = obj;
+				_hoveredAxis = axis;
+				_hoveredObjectPosition = position;
+				_hoveredObjectSpace = space;
+			}
+		}
+
 		void AlignToObject(GameObject baseObject, Axis axis)
 		{
 			Transform baseObjectTransform = baseObject.transform;
@@ -523,14 +666,7 @@ namespace TButt.Tools
 
 		void AlignObjectsCenter(Axis axis)
 		{
-			Vector3 avgPos = Vector3.zero;
-
-			foreach (GameObject obj in _selected)
-			{
-				avgPos += obj.transform.position;
-			}
-
-			avgPos /= _selected.Length;
+			Vector3 avgPos = CalculateAvgPosOfSelected();
 
 			foreach (GameObject obj in _selected)
 			{
@@ -552,6 +688,20 @@ namespace TButt.Tools
 				Undo.RecordObject(obj.transform, string.Format(UNDO_MESSAGE_CENTER_ALIGN_FORMAT, axis.ToString()));
 				obj.transform.position = newPosition;
 			}
+		}
+
+		Vector3 CalculateAvgPosOfSelected ()
+		{
+			Vector3 avgPos = Vector3.zero;
+
+			foreach (GameObject obj in _selected)
+			{
+				avgPos += obj.transform.position;
+			}
+
+			avgPos /= _selected.Length;
+
+			return avgPos;
 		}
 
 		void DistributeBetweenObjects(int firstSelected, int lastSelected, Axis axis)
